@@ -30,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<MediaItem> _westernSeriesList = [];
   List<MediaItem> _hollywoodList = [];
   List<MediaItem> _indonesianList = [];
+  List<MediaItem> _allMediaList = [];
   List<WatchHistoryItem> _continueWatchingList = [];
 
   bool _isLoading = true;
@@ -47,14 +48,35 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     final provider = CineFlowAppScope.of(context);
 
-    final featuredRes = await provider.getFeaturedMedia();
-    final trendingRes = await provider.getTrending();
-    final drakorRes = await provider.getByCategory('drakor');
-    final animeRes = await provider.getByCategory('anime');
-    final westernRes = await provider.getByCategory('western_series');
-    final hollywoodRes = await provider.getByCategory('hollywood');
-    final indoRes = await provider.getByCategory('indonesian');
+    // Ambil seluruh kategori secara paralel dengan Future.wait
+    final results = await Future.wait([
+      provider.getFeaturedMedia(),
+      provider.getTrending(),
+      provider.getByCategory('drakor'),
+      provider.getByCategory('anime'),
+      provider.getByCategory('western_series'),
+      provider.getByCategory('hollywood'),
+      provider.getByCategory('indonesian'),
+    ]);
+
+    final featuredRes = results[0];
+    final trendingRes = results[1];
+    final drakorRes = results[2];
+    final animeRes = results[3];
+    final westernRes = results[4];
+    final hollywoodRes = results[5];
+    final indoRes = results[6];
     final history = await LocalStorageService.instance.getWatchHistory();
+
+    final combined = <MediaItem>{
+      ...(featuredRes.data ?? []),
+      ...(trendingRes.data ?? []),
+      ...(drakorRes.data ?? []),
+      ...(animeRes.data ?? []),
+      ...(westernRes.data ?? []),
+      ...(hollywoodRes.data ?? []),
+      ...(indoRes.data ?? []),
+    }.toList();
 
     if (mounted) {
       setState(() {
@@ -65,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _westernSeriesList = westernRes.data ?? [];
         _hollywoodList = hollywoodRes.data ?? [];
         _indonesianList = indoRes.data ?? [];
+        _allMediaList = combined;
         _continueWatchingList = history;
         _isLoading = false;
       });
@@ -186,71 +209,143 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Banner Hero Carousel
-            if (_featuredList.isNotEmpty)
+            // Jika filter bukan 'all', tampilkan grid poster vertikal kategori tersebut
+            if (_selectedCategoryFilter != 'all') ...[
               SliverToBoxAdapter(
-                child: _buildHeroCarousel(),
-              ),
-
-            // Seksi Lanjutkan Menonton (LokLok Signature)
-            if (_continueWatchingList.isNotEmpty)
-              SliverToBoxAdapter(
-                child: _buildContinueWatchingSection(),
-              ),
-
-            // Baris Sedang Tren
-            if (_trendingList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'trending'))
-              SliverToBoxAdapter(
-                child: _buildMediaRow(
-                  title: 'Sedang Tren 🔥',
-                  items: _trendingList,
+                child: SectionHeader(
+                  title: '${_getCategoryTitle(_selectedCategoryFilter)} (${_getFilteredList(_selectedCategoryFilter).length} Judul)',
+                  onSeeAll: null,
                 ),
               ),
-
-            // Baris Drama Korea (Drakor)
-            if (_drakorList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'drakor'))
-              SliverToBoxAdapter(
-                child: _buildMediaRow(
-                  title: 'Drama Korea Populer (Drakor) 💖',
-                  items: _drakorList,
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: 0.52,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 14,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, idx) {
+                      final item = _getFilteredList(_selectedCategoryFilter)[idx];
+                      return MediaCard(
+                        item: item,
+                        width: double.infinity,
+                        height: 155,
+                        onTap: () => _openDetail(item.id),
+                      );
+                    },
+                    childCount: _getFilteredList(_selectedCategoryFilter).length,
+                  ),
                 ),
               ),
-
-            // Baris Anime Terpopuler
-            if (_animeList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'anime'))
-              SliverToBoxAdapter(
-                child: _buildMediaRow(
-                  title: 'Anime Terpopuler ⚔️',
-                  items: _animeList,
+            ] else ...[
+              // Banner Hero Carousel
+              if (_featuredList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildHeroCarousel(),
                 ),
-              ),
 
-            // Baris Series Barat Unggulan
-            if (_westernSeriesList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'western_series'))
-              SliverToBoxAdapter(
-                child: _buildMediaRow(
-                  title: 'Series Barat Unggulan 📺',
-                  items: _westernSeriesList,
+              // Seksi Lanjutkan Menonton (LokLok Signature)
+              if (_continueWatchingList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildContinueWatchingSection(),
                 ),
-              ),
 
-            // Baris Film Barat & Box Office
-            if (_hollywoodList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'hollywood'))
-              SliverToBoxAdapter(
-                child: _buildMediaRow(
-                  title: 'Film Barat & Box Office 🎬',
-                  items: _hollywoodList,
+              // Baris Sedang Tren
+              if (_trendingList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildMediaRow(
+                    title: 'Sedang Tren 🔥',
+                    items: _trendingList,
+                    onSeeAll: () => setState(() => _selectedCategoryFilter = 'trending'),
+                  ),
                 ),
-              ),
 
-            // Baris Film & Serial Indonesia
-            if (_indonesianList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'indonesian'))
-              SliverToBoxAdapter(
-                child: _buildMediaRow(
-                  title: 'Film & Serial Indonesia 🇮🇩',
-                  items: _indonesianList,
+              // Baris Drama Korea (Drakor)
+              if (_drakorList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildMediaRow(
+                    title: 'Drama Korea Populer (Drakor) 💖',
+                    items: _drakorList,
+                    onSeeAll: () => setState(() => _selectedCategoryFilter = 'drakor'),
+                  ),
                 ),
-              ),
+
+              // Baris Anime Terpopuler
+              if (_animeList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildMediaRow(
+                    title: 'Anime Terpopuler ⚔️',
+                    items: _animeList,
+                    onSeeAll: () => setState(() => _selectedCategoryFilter = 'anime'),
+                  ),
+                ),
+
+              // Baris Series Barat Unggulan
+              if (_westernSeriesList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildMediaRow(
+                    title: 'Series Barat Unggulan 📺',
+                    items: _westernSeriesList,
+                    onSeeAll: () => setState(() => _selectedCategoryFilter = 'western_series'),
+                  ),
+                ),
+
+              // Baris Film Barat & Box Office
+              if (_hollywoodList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildMediaRow(
+                    title: 'Film Barat & Box Office 🎬',
+                    items: _hollywoodList,
+                    onSeeAll: () => setState(() => _selectedCategoryFilter = 'hollywood'),
+                  ),
+                ),
+
+              // Baris Film & Serial Indonesia
+              if (_indonesianList.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildMediaRow(
+                    title: 'Film & Serial Indonesia 🇮🇩',
+                    items: _indonesianList,
+                    onSeeAll: () => setState(() => _selectedCategoryFilter = 'indonesian'),
+                  ),
+                ),
+
+              // Eksplorasi Grid Masif 200+ Konten di Bagian Bawah
+              if (_allMediaList.isNotEmpty) ...[
+                const SliverToBoxAdapter(
+                  child: SectionHeader(
+                    title: 'Jelajahi Semua Koleksi (200+ Judul Lengkap) 🌟',
+                    onSeeAll: null,
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 0.52,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 14,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, idx) {
+                        final item = _allMediaList[idx];
+                        return MediaCard(
+                          item: item,
+                          width: double.infinity,
+                          height: 155,
+                          onTap: () => _openDetail(item.id),
+                        );
+                      },
+                      childCount: _allMediaList.length,
+                    ),
+                  ),
+                ),
+              ],
+            ],
 
             // Ruang Penahan Bawah agar Tidak Tertutup Tab Bar Kaca
             const SliverToBoxAdapter(
@@ -540,13 +635,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildMediaRow({
     required String title,
     required List<MediaItem> items,
+    VoidCallback? onSeeAll,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionHeader(
           title: title,
-          onSeeAll: () {},
+          onSeeAll: onSeeAll,
         ),
         SizedBox(
           height: 250,
@@ -565,5 +661,45 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  /// Judul Deskriptif Kategori Berdasarkan Filter
+  String _getCategoryTitle(String catId) {
+    switch (catId) {
+      case 'drakor':
+        return 'Drama Korea Populer (Drakor) 💖';
+      case 'anime':
+        return 'Anime Terpopuler ⚔️';
+      case 'western_series':
+        return 'Series Barat Unggulan 📺';
+      case 'hollywood':
+        return 'Film Barat & Box Office 🎬';
+      case 'indonesian':
+        return 'Film & Serial Indonesia 🇮🇩';
+      case 'trending':
+        return 'Sedang Tren Terpanas 🔥';
+      default:
+        return 'Semua Koleksi';
+    }
+  }
+
+  /// Ambil Daftar Media Sesuai Kategori
+  List<MediaItem> _getFilteredList(String catId) {
+    switch (catId) {
+      case 'drakor':
+        return _drakorList;
+      case 'anime':
+        return _animeList;
+      case 'western_series':
+        return _westernSeriesList;
+      case 'hollywood':
+        return _hollywoodList;
+      case 'indonesian':
+        return _indonesianList;
+      case 'trending':
+        return _trendingList;
+      default:
+        return _allMediaList;
+    }
   }
 }

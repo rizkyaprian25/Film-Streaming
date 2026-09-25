@@ -29,6 +29,10 @@ class LoklokStreamProvider implements StreamProvider {
   // Cache memori internal untuk performa instan (0ms latency saat berpindah tab)
   static final Map<String, _CacheEntry<dynamic>> _memoryCache = {};
 
+  // Autonomous Circuit Breaker (Aturan 3-Strike)
+  static int _consecutiveFailures = 0;
+  static DateTime? _circuitBreakerUntil;
+
   const LoklokStreamProvider({
     this.baseUrl = 'https://ga-mobile-api.loklok.tv/cms/app',
     this.mirrorUrls = const [
@@ -51,12 +55,17 @@ class LoklokStreamProvider implements StreamProvider {
     };
   }
 
-  /// Eksekutor HTTP multi-mirror dengan failover otomatis
+  /// Eksekutor HTTP multi-mirror dengan failover otomatis dan Circuit Breaker
   Future<http.Response?> _requestWithFailover({
     required String pathWithQuery,
     String method = 'GET',
     String? body,
   }) async {
+    // Jika circuit breaker aktif (3 kegagalan beruntun), lewati langsung ke fallback
+    if (_circuitBreakerUntil != null && DateTime.now().isBefore(_circuitBreakerUntil!)) {
+      return null;
+    }
+
     final candidateBases = <String>{baseUrl, ...mirrorUrls};
     for (final base in candidateBases) {
       try {
@@ -76,12 +85,22 @@ class LoklokStreamProvider implements StreamProvider {
         }
 
         if (res.statusCode == 200) {
+          // Reset status kegagalan saat ada respons sukses
+          _consecutiveFailures = 0;
+          _circuitBreakerUntil = null;
           return res;
         }
       } catch (_) {
         // Coba mirror berikutnya jika timeout atau terjadi kendala jaringan
       }
     }
+
+    // Catat kegagalan jaringan dan aktifkan circuit breaker jika mencapai ambang batas
+    _consecutiveFailures++;
+    if (_consecutiveFailures >= 3) {
+      _circuitBreakerUntil = DateTime.now().add(const Duration(minutes: 2));
+    }
+
     return null;
   }
 
@@ -194,19 +213,21 @@ class LoklokStreamProvider implements StreamProvider {
 
   @override
   Future<ApiResponse<List<MediaItem>>> getByCategory(String categoryId, {int page = 1}) async {
-    try {
-      final trendingRes = await getTrending(page: page);
-      if (trendingRes.isSuccess && trendingRes.data != null && trendingRes.data!.isNotEmpty) {
-        if (categoryId == 'tv_series') {
-          final filtered = trendingRes.data!.where((m) => m.type == MediaType.series).toList();
-          if (filtered.isNotEmpty) return ApiResponse.success(filtered);
-        } else if (categoryId == 'popular_movies') {
-          final filtered = trendingRes.data!.where((m) => m.type == MediaType.movie).toList();
-          if (filtered.isNotEmpty) return ApiResponse.success(filtered);
+    if (categoryId == 'tv_series' || categoryId == 'popular_movies') {
+      try {
+        final trendingRes = await getTrending(page: page);
+        if (trendingRes.isSuccess && trendingRes.data != null && trendingRes.data!.isNotEmpty) {
+          if (categoryId == 'tv_series') {
+            final filtered = trendingRes.data!.where((m) => m.type == MediaType.series).toList();
+            if (filtered.isNotEmpty) return ApiResponse.success(filtered);
+          } else if (categoryId == 'popular_movies') {
+            final filtered = trendingRes.data!.where((m) => m.type == MediaType.movie).toList();
+            if (filtered.isNotEmpty) return ApiResponse.success(filtered);
+          }
         }
+      } catch (_) {
+        // Fallback
       }
-    } catch (_) {
-      // Fallback
     }
 
     return fallbackProvider.getByCategory(categoryId, page: page);

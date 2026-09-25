@@ -52,12 +52,21 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     setState(() => _isLoading = true);
     final provider = CineFlowAppScope.of(context);
 
-    final drakorRes = await provider.getByCategory('drakor');
-    final animeRes = await provider.getByCategory('anime');
-    final westernRes = await provider.getByCategory('western_series');
-    final hollywoodRes = await provider.getByCategory('hollywood');
-    final indoRes = await provider.getByCategory('indonesian');
-    final trendingRes = await provider.getTrending();
+    final results = await Future.wait([
+      provider.getByCategory('drakor'),
+      provider.getByCategory('anime'),
+      provider.getByCategory('western_series'),
+      provider.getByCategory('hollywood'),
+      provider.getByCategory('indonesian'),
+      provider.getTrending(),
+    ]);
+
+    final drakorRes = results[0];
+    final animeRes = results[1];
+    final westernRes = results[2];
+    final hollywoodRes = results[3];
+    final indoRes = results[4];
+    final trendingRes = results[5];
 
     final combined = <MediaItem>{
       ...(trendingRes.data ?? []),

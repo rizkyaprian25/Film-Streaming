@@ -36,7 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCatalog();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadCatalog();
+    });
   }
 
   Future<void> _loadCatalog() async {
@@ -251,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, idx) {
           final cat = categories[idx];
           final isSelected = _selectedCategoryFilter == cat['id'];
@@ -313,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Image.network(
                       item.backdropUrl.isNotEmpty ? item.backdropUrl : item.posterUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceElevated),
+                      errorBuilder: (_, _, _) => Container(color: AppColors.surfaceElevated),
                     ),
                     // Gradien Bayangan Gelap Apple HIG
                     Container(
@@ -432,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,
             itemCount: _continueWatchingList.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, idx) {
               final item = _continueWatchingList[idx];
 
@@ -454,7 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Image.network(
                                 item.posterUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceElevated),
+                                errorBuilder: (_, _, _) => Container(color: AppColors.surfaceElevated),
                               ),
                             ),
                             Positioned.fill(

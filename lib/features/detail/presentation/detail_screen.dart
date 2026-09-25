@@ -8,7 +8,6 @@ import '../../../core/storage/local_storage.dart';
 import '../../../core/widgets/media_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../contracts/models.dart';
-import '../../../contracts/api_contracts.dart';
 import '../../../main.dart';
 import '../../player/presentation/player_screen.dart';
 
@@ -31,7 +30,9 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDetail();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadDetail();
+    });
   }
 
   Future<void> _loadDetail() async {
@@ -174,7 +175,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   Image.network(
                     detail.backdropUrl.isNotEmpty ? detail.backdropUrl : detail.posterUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceElevated),
+                    errorBuilder: (_, _, _) => Container(color: AppColors.surfaceElevated),
                   ),
                   // Gradien Hitam Sinematik
                   Container(
@@ -356,7 +357,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: seasons.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
                           itemBuilder: (context, idx) {
                             final isSel = _selectedSeasonIndex == idx;
                             return ChoiceChip(
@@ -381,7 +382,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: currentEpisodes.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        separatorBuilder: (_, _) => const SizedBox(width: 12),
                         itemBuilder: (context, index) {
                           final ep = currentEpisodes[index];
                           return GestureDetector(

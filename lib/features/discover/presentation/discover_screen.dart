@@ -37,7 +37,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   void initState() {
     super.initState();
-    _loadItems();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadItems();
+    });
   }
 
   Future<void> _loadItems() async {
@@ -107,7 +109,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               scrollDirection: Axis.horizontal,
               itemCount: _genres.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, idx) {
                 final genre = _genres[idx];
                 final isSel = _selectedGenre == genre;

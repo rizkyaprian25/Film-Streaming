@@ -159,7 +159,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       itemCount: _historyList.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, idx) {
         final item = _historyList[idx];
 
@@ -199,7 +199,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                           child: Image.network(
                             item.posterUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceElevated),
+                            errorBuilder: (_, _, _) => Container(color: AppColors.surfaceElevated),
                           ),
                         ),
                         Positioned.fill(
@@ -288,7 +288,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       itemCount: _watchlist.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, idx) {
         final item = _watchlist[idx];
 
@@ -320,7 +320,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                     child: Image.network(
                       item.posterUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: AppColors.surfaceElevated),
+                      errorBuilder: (_, _, _) => Container(color: AppColors.surfaceElevated),
                     ),
                   ),
                 ),

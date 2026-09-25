@@ -25,14 +25,16 @@ class _SearchScreenState extends State<SearchScreen> {
   String _lastQuery = '';
 
   final List<String> _popularTags = [
-    'Cyberpunk',
+    'Queen of Tears',
+    'Solo Leveling',
+    'Dune 2',
+    'The Last of Us',
+    'Stranger Things',
+    'Jujutsu Kaisen',
+    'Gadis Kretek',
+    'Squid Game',
+    'Drakor',
     'Anime',
-    'Sci-Fi',
-    'Joko Anwar',
-    'Reza Rahadian',
-    'Spirit Blossom',
-    'Misteri',
-    'Neo Jakarta',
   ];
 
   @override

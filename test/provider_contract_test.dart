@@ -43,12 +43,12 @@ void main() {
     });
 
     test('searchMedia menemukan media berdasarkan judul dan genre', () async {
-      // Pencarian dengan keyword Cyberpunk
-      final searchRes = await provider.searchMedia('Cyberpunk');
+      // Pencarian dengan keyword Queen of Tears
+      final searchRes = await provider.searchMedia('Queen of Tears');
       expect(searchRes.isSuccess, isTrue);
       expect(searchRes.data!.isNotEmpty, isTrue);
       expect(
-        searchRes.data!.any((m) => m.title.contains('Cyberpunk') || m.genres.contains('Cyberpunk')),
+        searchRes.data!.any((m) => m.title.contains('Queen of Tears')),
         isTrue,
       );
 
@@ -59,12 +59,12 @@ void main() {
     });
 
     test('getMediaDetail dan getStreamSources mengembalikan data siap putar', () async {
-      final detailRes = await provider.getMediaDetail('m1');
+      final detailRes = await provider.getMediaDetail('k1');
       expect(detailRes.isSuccess, isTrue);
       expect(detailRes.data, isNotNull);
-      expect(detailRes.data!.id, equals('m1'));
+      expect(detailRes.data!.id, equals('k1'));
 
-      final sourcesRes = await provider.getStreamSources(mediaId: 'm1');
+      final sourcesRes = await provider.getStreamSources(mediaId: 'k1');
       expect(sourcesRes.isSuccess, isTrue);
       expect(sourcesRes.data!.isNotEmpty, isTrue);
       expect(sourcesRes.data!.first.url.isNotEmpty, isTrue);

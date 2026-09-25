@@ -24,18 +24,18 @@ void main() {
     });
 
     test('searchMedia menangani pencarian kata kunci dengan proteksi fallback', () async {
-      final res = await provider.searchMedia('Cyberpunk');
+      final res = await provider.searchMedia('Solo Leveling');
       expect(res.isSuccess, isTrue);
       expect(res.data, isNotNull);
       expect(res.data!.isNotEmpty, isTrue);
     });
 
     test('getMediaDetail dan getStreamSources mengembalikan detail dan sumber pemutaran', () async {
-      final detailRes = await provider.getMediaDetail('m1');
+      final detailRes = await provider.getMediaDetail('a1');
       expect(detailRes.isSuccess, isTrue);
       expect(detailRes.data, isNotNull);
 
-      final sourcesRes = await provider.getStreamSources(mediaId: 'm1');
+      final sourcesRes = await provider.getStreamSources(mediaId: 'a1');
       expect(sourcesRes.isSuccess, isTrue);
       expect(sourcesRes.data, isNotNull);
       expect(sourcesRes.data!.isNotEmpty, isTrue);

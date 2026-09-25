@@ -19,9 +19,13 @@ class MediaCategory {
   });
 
   static const MediaCategory trending = MediaCategory(id: 'trending', title: 'Sedang Tren');
+  static const MediaCategory drakor = MediaCategory(id: 'drakor', title: 'Drama Korea (Drakor)');
+  static const MediaCategory anime = MediaCategory(id: 'anime', title: 'Anime Pilihan');
+  static const MediaCategory westernSeries = MediaCategory(id: 'western_series', title: 'Series Barat');
+  static const MediaCategory hollywood = MediaCategory(id: 'hollywood', title: 'Film Barat & Box Office');
+  static const MediaCategory indonesian = MediaCategory(id: 'indonesian', title: 'Film Indonesia');
   static const MediaCategory popularMovies = MediaCategory(id: 'popular_movies', title: 'Film Populer');
   static const MediaCategory tvSeries = MediaCategory(id: 'tv_series', title: 'Serial TV');
-  static const MediaCategory anime = MediaCategory(id: 'anime', title: 'Anime Pilihan');
   static const MediaCategory topRated = MediaCategory(id: 'top_rated', title: 'Rating Tertinggi');
 }
 

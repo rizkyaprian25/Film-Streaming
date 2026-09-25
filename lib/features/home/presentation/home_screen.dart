@@ -25,9 +25,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<MediaItem> _featuredList = [];
   List<MediaItem> _trendingList = [];
-  List<MediaItem> _moviesList = [];
-  List<MediaItem> _seriesList = [];
+  List<MediaItem> _drakorList = [];
   List<MediaItem> _animeList = [];
+  List<MediaItem> _westernSeriesList = [];
+  List<MediaItem> _hollywoodList = [];
+  List<MediaItem> _indonesianList = [];
   List<WatchHistoryItem> _continueWatchingList = [];
 
   bool _isLoading = true;
@@ -47,18 +49,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final featuredRes = await provider.getFeaturedMedia();
     final trendingRes = await provider.getTrending();
-    final moviesRes = await provider.getByCategory('popular_movies');
-    final seriesRes = await provider.getByCategory('tv_series');
+    final drakorRes = await provider.getByCategory('drakor');
     final animeRes = await provider.getByCategory('anime');
+    final westernRes = await provider.getByCategory('western_series');
+    final hollywoodRes = await provider.getByCategory('hollywood');
+    final indoRes = await provider.getByCategory('indonesian');
     final history = await LocalStorageService.instance.getWatchHistory();
 
     if (mounted) {
       setState(() {
         _featuredList = featuredRes.data ?? [];
         _trendingList = trendingRes.data ?? [];
-        _moviesList = moviesRes.data ?? [];
-        _seriesList = seriesRes.data ?? [];
+        _drakorList = drakorRes.data ?? [];
         _animeList = animeRes.data ?? [];
+        _westernSeriesList = westernRes.data ?? [];
+        _hollywoodList = hollywoodRes.data ?? [];
+        _indonesianList = indoRes.data ?? [];
         _continueWatchingList = history;
         _isLoading = false;
       });
@@ -196,26 +202,17 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_trendingList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'trending'))
               SliverToBoxAdapter(
                 child: _buildMediaRow(
-                  title: 'Sedang Tren',
+                  title: 'Sedang Tren 🔥',
                   items: _trendingList,
                 ),
               ),
 
-            // Baris Film Populer
-            if (_moviesList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'movie'))
+            // Baris Drama Korea (Drakor)
+            if (_drakorList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'drakor'))
               SliverToBoxAdapter(
                 child: _buildMediaRow(
-                  title: 'Film Populer',
-                  items: _moviesList,
-                ),
-              ),
-
-            // Baris Serial TV
-            if (_seriesList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'series'))
-              SliverToBoxAdapter(
-                child: _buildMediaRow(
-                  title: 'Serial TV Pilihan',
-                  items: _seriesList,
+                  title: 'Drama Korea Populer (Drakor) 💖',
+                  items: _drakorList,
                 ),
               ),
 
@@ -223,8 +220,35 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_animeList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'anime'))
               SliverToBoxAdapter(
                 child: _buildMediaRow(
-                  title: 'Anime Terpopuler',
+                  title: 'Anime Terpopuler ⚔️',
                   items: _animeList,
+                ),
+              ),
+
+            // Baris Series Barat Unggulan
+            if (_westernSeriesList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'western_series'))
+              SliverToBoxAdapter(
+                child: _buildMediaRow(
+                  title: 'Series Barat Unggulan 📺',
+                  items: _westernSeriesList,
+                ),
+              ),
+
+            // Baris Film Barat & Box Office
+            if (_hollywoodList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'hollywood'))
+              SliverToBoxAdapter(
+                child: _buildMediaRow(
+                  title: 'Film Barat & Box Office 🎬',
+                  items: _hollywoodList,
+                ),
+              ),
+
+            // Baris Film & Serial Indonesia
+            if (_indonesianList.isNotEmpty && (_selectedCategoryFilter == 'all' || _selectedCategoryFilter == 'indonesian'))
+              SliverToBoxAdapter(
+                child: _buildMediaRow(
+                  title: 'Film & Serial Indonesia 🇮🇩',
+                  items: _indonesianList,
                 ),
               ),
 
@@ -242,9 +266,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCategoryPills() {
     final categories = [
       {'id': 'all', 'label': 'Semua'},
-      {'id': 'movie', 'label': 'Film'},
-      {'id': 'series', 'label': 'Serial TV'},
+      {'id': 'drakor', 'label': 'Drakor'},
       {'id': 'anime', 'label': 'Anime'},
+      {'id': 'western_series', 'label': 'Series Barat'},
+      {'id': 'hollywood', 'label': 'Film Barat'},
+      {'id': 'indonesian', 'label': 'Indonesia'},
     ];
 
     return Container(

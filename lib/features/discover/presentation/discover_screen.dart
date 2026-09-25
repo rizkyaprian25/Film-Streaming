@@ -24,13 +24,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   final List<String> _genres = [
     'Semua',
+    'Drakor',
+    'Anime',
+    'Series Barat',
+    'Film Barat',
+    'Indonesia',
     'Aksi',
+    'Romance',
+    'Horor',
     'Sci-Fi',
     'Fantasi',
     'Thriller',
     'Drama',
-    'Anime',
-    'Misteri',
+    'Komedi',
     'Petualangan',
   ];
 
@@ -46,16 +52,20 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     setState(() => _isLoading = true);
     final provider = CineFlowAppScope.of(context);
 
-    final trendingRes = await provider.getTrending();
-    final moviesRes = await provider.getByCategory('popular_movies');
-    final seriesRes = await provider.getByCategory('tv_series');
+    final drakorRes = await provider.getByCategory('drakor');
     final animeRes = await provider.getByCategory('anime');
+    final westernRes = await provider.getByCategory('western_series');
+    final hollywoodRes = await provider.getByCategory('hollywood');
+    final indoRes = await provider.getByCategory('indonesian');
+    final trendingRes = await provider.getTrending();
 
     final combined = <MediaItem>{
       ...(trendingRes.data ?? []),
-      ...(moviesRes.data ?? []),
-      ...(seriesRes.data ?? []),
+      ...(drakorRes.data ?? []),
       ...(animeRes.data ?? []),
+      ...(westernRes.data ?? []),
+      ...(hollywoodRes.data ?? []),
+      ...(indoRes.data ?? []),
     }.toList();
 
     if (mounted) {

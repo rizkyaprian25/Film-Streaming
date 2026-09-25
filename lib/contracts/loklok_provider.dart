@@ -1,5 +1,5 @@
-// Provider Streaming Realtime Berbasis LokLok API (*LokLok Stream Provider Adapter*)
-// Mengadopsi arsitektur dari repositori fork-filmhot untuk mengambil katalog, detail, dan stream video langsung.
+// Provider Streaming Teroptimasi Berbasis LokLok API (*Optimized LokLok Stream Provider*)
+// Dilengkapi Multi-Mirror Fallback, In-Memory TTL Cache (5 menit), dan Failover Cepat.
 
 import 'dart:convert';
 import 'dart:math';
@@ -8,20 +8,38 @@ import 'api_contracts.dart';
 import 'mock_provider.dart';
 import 'models.dart';
 
+/// Struktur penyimpanan cache memori dengan waktu kedaluwarsa (*Time-to-Live*)
+class _CacheEntry<T> {
+  final T data;
+  final DateTime expiry;
+
+  _CacheEntry(this.data, {Duration ttl = const Duration(minutes: 5)})
+      : expiry = DateTime.now().add(ttl);
+
+  bool get isValid => DateTime.now().isBefore(expiry);
+}
+
 class LoklokStreamProvider implements StreamProvider {
   final String baseUrl;
+  final List<String> mirrorUrls;
   final StreamProvider fallbackProvider;
   final int timeoutSeconds;
   final String language;
 
+  // Cache memori internal untuk performa instan (0ms latency saat berpindah tab)
+  static final Map<String, _CacheEntry<dynamic>> _memoryCache = {};
+
   const LoklokStreamProvider({
     this.baseUrl = 'https://ga-mobile-api.loklok.tv/cms/app',
+    this.mirrorUrls = const [
+      'https://ga-mobile-api.loklok.tv/cms/app',
+    ],
     this.fallbackProvider = const MockStreamProvider(),
-    this.timeoutSeconds = 8,
+    this.timeoutSeconds = 4, // Timeout tanggap 4 detik agar UI tidak terhambat
     this.language = 'en',
   });
 
-  /// Header wajib agar permintaan diizinkan oleh gateway LokLok
+  /// Menghasilkan header resmi yang dipersyaratkan oleh gateway LokLok
   Map<String, String> _buildHeaders() {
     final randomId = Random().nextInt(0xFFFFFF).toRadixString(16).padLeft(8, '0');
     return {
@@ -33,15 +51,51 @@ class LoklokStreamProvider implements StreamProvider {
     };
   }
 
+  /// Eksekutor HTTP multi-mirror dengan failover otomatis
+  Future<http.Response?> _requestWithFailover({
+    required String pathWithQuery,
+    String method = 'GET',
+    String? body,
+  }) async {
+    final candidateBases = <String>{baseUrl, ...mirrorUrls};
+    for (final base in candidateBases) {
+      try {
+        final cleanBase = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+        final cleanPath = pathWithQuery.startsWith('/') ? pathWithQuery : '/$pathWithQuery';
+        final uri = Uri.parse('$cleanBase$cleanPath');
+
+        final http.Response res;
+        if (method == 'POST') {
+          res = await http
+              .post(uri, headers: _buildHeaders(), body: body)
+              .timeout(Duration(seconds: timeoutSeconds));
+        } else {
+          res = await http
+              .get(uri, headers: _buildHeaders())
+              .timeout(Duration(seconds: timeoutSeconds));
+        }
+
+        if (res.statusCode == 200) {
+          return res;
+        }
+      } catch (_) {
+        // Coba mirror berikutnya jika timeout atau terjadi kendala jaringan
+      }
+    }
+    return null;
+  }
+
   @override
   Future<ApiResponse<List<MediaItem>>> getFeaturedMedia() async {
-    try {
-      final uri = Uri.parse('$baseUrl/homePage/getHome?page=0');
-      final response = await http
-          .get(uri, headers: _buildHeaders())
-          .timeout(Duration(seconds: timeoutSeconds));
+    const cacheKey = 'loklok_featured_media';
+    final cached = _memoryCache[cacheKey];
+    if (cached != null && cached.isValid) {
+      return ApiResponse.success(cached.data as List<MediaItem>);
+    }
 
-      if (response.statusCode == 200) {
+    try {
+      final response = await _requestWithFailover(pathWithQuery: 'homePage/getHome?page=0');
+      if (response != null) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final data = json['data'] as Map<String, dynamic>?;
         final recommendItems = (data?['recommendItems'] as List<dynamic>?) ?? [];
@@ -73,11 +127,13 @@ class LoklokStreamProvider implements StreamProvider {
         }
 
         if (items.isNotEmpty) {
-          return ApiResponse.success(items.take(6).toList());
+          final result = items.take(6).toList();
+          _memoryCache[cacheKey] = _CacheEntry(result);
+          return ApiResponse.success(result);
         }
       }
     } catch (_) {
-      // Fallback transparan jika koneksi ke server LokLok mengalami timeout atau terblokir
+      // Fallback
     }
 
     return fallbackProvider.getFeaturedMedia();
@@ -85,13 +141,15 @@ class LoklokStreamProvider implements StreamProvider {
 
   @override
   Future<ApiResponse<List<MediaItem>>> getTrending({int page = 1}) async {
-    try {
-      final uri = Uri.parse('$baseUrl/homePage/getHome?page=${page - 1}');
-      final response = await http
-          .get(uri, headers: _buildHeaders())
-          .timeout(Duration(seconds: timeoutSeconds));
+    final cacheKey = 'loklok_trending_page_$page';
+    final cached = _memoryCache[cacheKey];
+    if (cached != null && cached.isValid) {
+      return ApiResponse.success(cached.data as List<MediaItem>);
+    }
 
-      if (response.statusCode == 200) {
+    try {
+      final response = await _requestWithFailover(pathWithQuery: 'homePage/getHome?page=${page - 1}');
+      if (response != null) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final data = json['data'] as Map<String, dynamic>?;
         final recommendItems = (data?['recommendItems'] as List<dynamic>?) ?? [];
@@ -123,11 +181,12 @@ class LoklokStreamProvider implements StreamProvider {
         }
 
         if (items.isNotEmpty) {
+          _memoryCache[cacheKey] = _CacheEntry(items);
           return ApiResponse.success(items);
         }
       }
     } catch (_) {
-      // Fallback otomatis
+      // Fallback
     }
 
     return fallbackProvider.getTrending(page: page);
@@ -147,7 +206,7 @@ class LoklokStreamProvider implements StreamProvider {
         }
       }
     } catch (_) {
-      // Abaikan dan lanjut ke fallback
+      // Fallback
     }
 
     return fallbackProvider.getByCategory(categoryId, page: page);
@@ -158,22 +217,25 @@ class LoklokStreamProvider implements StreamProvider {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return const ApiResponse.success([]);
 
-    try {
-      final uri = Uri.parse('$baseUrl/search/v1/searchWithKeyWord');
-      final response = await http
-          .post(
-            uri,
-            headers: _buildHeaders(),
-            body: jsonEncode({
-              'searchKeyWord': cleanQuery,
-              'size': 30,
-              'sort': '',
-              'searchType': '',
-            }),
-          )
-          .timeout(Duration(seconds: timeoutSeconds));
+    final cacheKey = 'loklok_search_${cleanQuery}_${type?.name ?? "all"}';
+    final cached = _memoryCache[cacheKey];
+    if (cached != null && cached.isValid) {
+      return ApiResponse.success(cached.data as List<MediaItem>);
+    }
 
-      if (response.statusCode == 200) {
+    try {
+      final response = await _requestWithFailover(
+        pathWithQuery: 'search/v1/searchWithKeyWord',
+        method: 'POST',
+        body: jsonEncode({
+          'searchKeyWord': cleanQuery,
+          'size': 30,
+          'sort': '',
+          'searchType': '',
+        }),
+      );
+
+      if (response != null) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
         final data = json['data'] as Map<String, dynamic>?;
         final searchResults = (data?['searchResults'] as List<dynamic>?) ?? [];
@@ -205,6 +267,7 @@ class LoklokStreamProvider implements StreamProvider {
 
         if (results.isNotEmpty) {
           final filtered = type == null ? results : results.where((m) => m.type == type).toList();
+          _memoryCache[cacheKey] = _CacheEntry(filtered);
           return ApiResponse.success(filtered);
         }
       }
@@ -217,15 +280,19 @@ class LoklokStreamProvider implements StreamProvider {
 
   @override
   Future<ApiResponse<MediaDetail>> getMediaDetail(String id) async {
-    try {
-      // Coba category 0 (film) terlebih dahulu
-      for (final cat in [0, 1]) {
-        final uri = Uri.parse('$baseUrl/movieDrama/get?id=$id&category=$cat');
-        final response = await http
-            .get(uri, headers: _buildHeaders())
-            .timeout(Duration(seconds: timeoutSeconds));
+    final cacheKey = 'loklok_detail_$id';
+    final cached = _memoryCache[cacheKey];
+    if (cached != null && cached.isValid) {
+      return ApiResponse.success(cached.data as MediaDetail);
+    }
 
-        if (response.statusCode == 200) {
+    try {
+      for (final cat in [0, 1]) {
+        final response = await _requestWithFailover(
+          pathWithQuery: 'movieDrama/get?id=$id&category=$cat',
+        );
+
+        if (response != null) {
           final json = jsonDecode(response.body) as Map<String, dynamic>;
           final data = json['data'] as Map<String, dynamic>?;
 
@@ -237,11 +304,9 @@ class LoklokStreamProvider implements StreamProvider {
             final score = (data['score'] as num?)?.toDouble() ?? 8.0;
             final year = data['year'] as int? ?? DateTime.now().year;
 
-            // Parsing tags / genres
             final tagList = (data['tagList'] as List<dynamic>?) ?? [];
             final genres = tagList.map((t) => t['name'].toString()).toList();
 
-            // Parsing episodes jika serial
             final episodeVo = (data['episodeVo'] as List<dynamic>?) ?? [];
             final List<EpisodeItem> episodes = [];
             for (final ep in episodeVo) {
@@ -267,23 +332,24 @@ class LoklokStreamProvider implements StreamProvider {
                   ]
                 : <SeasonItem>[];
 
-            return ApiResponse.success(
-              MediaDetail(
-                id: id,
-                title: title,
-                overview: overview,
-                posterUrl: poster,
-                backdropUrl: backdrop,
-                rating: score,
-                releaseYear: year,
-                durationMinutes: cat == 0 ? 120 : 45,
-                type: cat == 1 ? MediaType.series : MediaType.movie,
-                genres: genres.isNotEmpty ? genres : ['Film'],
-                casts: ['Pemeran Utama'],
-                directors: ['Sutradara'],
-                seasons: seasons,
-              ),
+            final detail = MediaDetail(
+              id: id,
+              title: title,
+              overview: overview,
+              posterUrl: poster,
+              backdropUrl: backdrop,
+              rating: score,
+              releaseYear: year,
+              durationMinutes: cat == 0 ? 120 : 45,
+              type: cat == 1 ? MediaType.series : MediaType.movie,
+              genres: genres.isNotEmpty ? genres : ['Film'],
+              casts: ['Pemeran Utama'],
+              directors: ['Sutradara'],
+              seasons: seasons,
             );
+
+            _memoryCache[cacheKey] = _CacheEntry(detail);
+            return ApiResponse.success(detail);
           }
         }
       }
@@ -300,17 +366,14 @@ class LoklokStreamProvider implements StreamProvider {
     String? episodeId,
   }) async {
     try {
-      // Panggil media/previewInfo untuk mendapatkan tautan streaming langsung
       for (final cat in [0, 1]) {
         for (final def in ['GROOT_HD', 'GROOT_SD', 'GROOT_LD']) {
-          final uri = Uri.parse(
-            '$baseUrl/media/previewInfo?category=$cat&contentId=$mediaId&episodeId=${episodeId ?? ''}&definition=$def',
+          final response = await _requestWithFailover(
+            pathWithQuery:
+                'media/previewInfo?category=$cat&contentId=$mediaId&episodeId=${episodeId ?? ''}&definition=$def',
           );
-          final response = await http
-              .get(uri, headers: _buildHeaders())
-              .timeout(Duration(seconds: timeoutSeconds));
 
-          if (response.statusCode == 200) {
+          if (response != null) {
             final json = jsonDecode(response.body) as Map<String, dynamic>;
             final mediaUrl = json['data']?['mediaUrl']?.toString();
             if (mediaUrl != null && mediaUrl.isNotEmpty) {

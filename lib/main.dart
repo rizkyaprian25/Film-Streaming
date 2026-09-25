@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'core/error/global_error_boundary.dart';
 import 'contracts/api_contracts.dart';
 import 'contracts/mock_provider.dart';
+import 'contracts/loklok_provider.dart';
 import 'features/shell/app_shell.dart';
 
 /// Penyedia layanan data global tunggal (Service Locator / Dependency Injection sederhana)
@@ -45,7 +46,9 @@ void main() {
   runApp(
     GlobalErrorBoundary(
       child: CineFlowAppScope(
-        streamProvider: const MockStreamProvider(),
+        streamProvider: const LoklokStreamProvider(
+          fallbackProvider: MockStreamProvider(),
+        ),
         child: const CineFlowApp(),
       ),
     ),

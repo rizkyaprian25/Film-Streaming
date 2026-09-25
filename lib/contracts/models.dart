@@ -178,12 +178,14 @@ class StreamSource {
   final String url;
   final VideoQuality quality;
   final bool isHls;
+  final String? serverName;
   final Map<String, String>? httpHeaders;
 
   const StreamSource({
     required this.url,
     required this.quality,
     this.isHls = false,
+    this.serverName,
     this.httpHeaders,
   });
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'core/error/global_error_boundary.dart';
+import 'core/services/auto_scraper_service.dart';
 import 'contracts/api_contracts.dart';
 import 'contracts/mock_provider.dart';
 import 'contracts/loklok_provider.dart';
@@ -42,6 +43,9 @@ void main() {
       statusBarBrightness: Brightness.dark,
     ),
   );
+
+  // Inisialisasi mesin pengikisan otomatis in-app (Tachiyomi-style background auto-scraper)
+  AutoScraperService.instance.initAutoScrape();
 
   runApp(
     GlobalErrorBoundary(

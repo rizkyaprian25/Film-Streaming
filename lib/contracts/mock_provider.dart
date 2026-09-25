@@ -4,6 +4,7 @@
 import 'api_contracts.dart';
 import 'mock_data.dart';
 import 'models.dart';
+import '../core/services/auto_scraper_service.dart';
 
 class MockStreamProvider implements StreamProvider {
   final int simulatedDelayMs;
@@ -19,46 +20,67 @@ class MockStreamProvider implements StreamProvider {
   @override
   Future<ApiResponse<List<MediaItem>>> getFeaturedMedia() async {
     await _simulateLatency();
+    final scraped = AutoScraperService.instance.scrapedMediaNotifier.value;
+    if (scraped.isNotEmpty) {
+      final combined = <MediaItem>[
+        ...scraped.take(3),
+        ...MockData.featuredList,
+      ];
+      return ApiResponse.success(combined);
+    }
     return const ApiResponse.success(MockData.featuredList);
   }
 
   @override
   Future<ApiResponse<List<MediaItem>>> getTrending({int page = 1}) async {
     await _simulateLatency();
+    final scraped = AutoScraperService.instance.scrapedMediaNotifier.value;
+    if (scraped.isNotEmpty) {
+      final combined = <MediaItem>[
+        ...scraped,
+        ...MockData.trendingList,
+      ];
+      return ApiResponse.success(combined);
+    }
     return ApiResponse.success(MockData.trendingList);
   }
 
   @override
   Future<ApiResponse<List<MediaItem>>> getByCategory(String categoryId, {int page = 1}) async {
     await _simulateLatency();
+    final scraped = AutoScraperService.instance.getScrapedMediaByCategory(categoryId);
     switch (categoryId) {
+      case 'scraped_2026':
+        return ApiResponse.success(AutoScraperService.instance.scrapedMediaNotifier.value);
       case 'drakor':
-        return const ApiResponse.success(MockData.drakorList);
+        return ApiResponse.success([...scraped, ...MockData.drakorList]);
       case 'anime':
-        return const ApiResponse.success(MockData.animeList);
+        return ApiResponse.success([...scraped, ...MockData.animeList]);
       case 'western_series':
-        return const ApiResponse.success(MockData.westernSeriesList);
+        return ApiResponse.success([...scraped, ...MockData.westernSeriesList]);
       case 'hollywood':
-        return const ApiResponse.success(MockData.hollywoodList);
+        return ApiResponse.success([...scraped, ...MockData.hollywoodList]);
       case 'indonesian':
         return const ApiResponse.success(MockData.indonesianList);
       case 'tv_series':
         return ApiResponse.success([
+          ...scraped.where((m) => m.type == MediaType.series),
           ...MockData.drakorList,
           ...MockData.westernSeriesList,
           ...MockData.indonesianList.where((m) => m.type == MediaType.series),
         ]);
       case 'popular_movies':
         return ApiResponse.success([
+          ...scraped.where((m) => m.type == MediaType.movie),
           ...MockData.hollywoodList,
           ...MockData.indonesianList.where((m) => m.type == MediaType.movie),
         ]);
       case 'top_rated':
-        final sorted = List<MediaItem>.from(MockData.trendingList)
+        final sorted = List<MediaItem>.from([...scraped, ...MockData.trendingList])
           ..sort((a, b) => b.rating.compareTo(a.rating));
         return ApiResponse.success(sorted);
       default:
-        return ApiResponse.success(MockData.trendingList);
+        return ApiResponse.success([...scraped, ...MockData.trendingList]);
     }
   }
 
@@ -71,6 +93,7 @@ class MockStreamProvider implements StreamProvider {
     }
 
     final allItems = <MediaItem>{
+      ...AutoScraperService.instance.scrapedMediaNotifier.value,
       ...MockData.featuredList,
       ...MockData.drakorList,
       ...MockData.animeList,
@@ -92,13 +115,22 @@ class MockStreamProvider implements StreamProvider {
   @override
   Future<ApiResponse<MediaDetail>> getMediaDetail(String id) async {
     await _simulateLatency();
+
+    // 1. Cek detail dari MockData resmi
     final detail = MockData.mediaDetails[id];
     if (detail != null) {
       return ApiResponse.success(detail);
     }
 
-    // Fallback: Jika ID belum memiliki detail khusus, bangun detail representatif dari MediaItem
+    // 2. Cek detail dari sumber pengikis otomatis
+    final scrapedDetail = await AutoScraperService.instance.findScrapedDetail(id);
+    if (scrapedDetail != null) {
+      return ApiResponse.success(scrapedDetail);
+    }
+
+    // 3. Fallback: Bangun detail representatif dari MediaItem
     final allItems = <MediaItem>[
+      ...AutoScraperService.instance.scrapedMediaNotifier.value,
       ...MockData.featuredList,
       ...MockData.drakorList,
       ...MockData.animeList,

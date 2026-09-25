@@ -6,7 +6,9 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'api_contracts.dart';
 import 'mock_provider.dart';
+import 'mock_data.dart';
 import 'models.dart';
+import '../core/services/auto_scraper_service.dart';
 
 /// Struktur penyimpanan cache memori dengan waktu kedaluwarsa (*Time-to-Live*)
 class _CacheEntry<T> {
@@ -301,6 +303,14 @@ class LoklokStreamProvider implements StreamProvider {
 
   @override
   Future<ApiResponse<MediaDetail>> getMediaDetail(String id) async {
+    // 1. Cek langsung jika ini adalah media hasil scrap otomatis
+    if (id.contains('_scraped_')) {
+      final scraped = await AutoScraperService.instance.findScrapedDetail(id);
+      if (scraped != null) {
+        return ApiResponse.success(scraped);
+      }
+    }
+
     final cacheKey = 'loklok_detail_$id';
     final cached = _memoryCache[cacheKey];
     if (cached != null && cached.isValid) {
@@ -386,6 +396,14 @@ class LoklokStreamProvider implements StreamProvider {
     required String mediaId,
     String? episodeId,
   }) async {
+    // 1. Cek langsung jika ini adalah media hasil scrap otomatis
+    if (mediaId.contains('_scraped_')) {
+      final streams = await AutoScraperService.instance.findScrapedStreams(mediaId, episodeId: episodeId);
+      if (streams.isNotEmpty) {
+        return ApiResponse.success(streams);
+      }
+    }
+
     try {
       for (final cat in [0, 1]) {
         for (final def in ['GROOT_HD', 'GROOT_SD', 'GROOT_LD']) {
@@ -398,23 +416,30 @@ class LoklokStreamProvider implements StreamProvider {
             final json = jsonDecode(response.body) as Map<String, dynamic>;
             final mediaUrl = json['data']?['mediaUrl']?.toString();
             if (mediaUrl != null && mediaUrl.isNotEmpty) {
+              final primarySource = StreamSource(
+                url: mediaUrl,
+                quality: def.contains('HD')
+                    ? VideoQuality.q1080p
+                    : def.contains('SD')
+                        ? VideoQuality.q720p
+                        : VideoQuality.q480p,
+                isHls: mediaUrl.contains('.m3u8'),
+                serverName: 'Server LokLok (${def.contains('HD') ? '1080p' : '720p'})',
+              );
+
+              final fallbackRes = await fallbackProvider.getStreamSources(mediaId: mediaId, episodeId: episodeId);
+              final fallbacks = fallbackRes.data ?? MockData.sampleStreamSources;
+
               return ApiResponse.success([
-                StreamSource(
-                  url: mediaUrl,
-                  quality: def.contains('HD')
-                      ? VideoQuality.q1080p
-                      : def.contains('SD')
-                          ? VideoQuality.q720p
-                          : VideoQuality.q480p,
-                  isHls: mediaUrl.contains('.m3u8'),
-                ),
+                primarySource,
+                ...fallbacks.where((s) => s.url != mediaUrl),
               ]);
             }
           }
         }
       }
     } catch (_) {
-      // Fallback
+      // Fallback otomatis ke cermin video terverifikasi
     }
 
     return fallbackProvider.getStreamSources(mediaId: mediaId, episodeId: episodeId);

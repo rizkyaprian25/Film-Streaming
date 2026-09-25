@@ -158,4 +158,91 @@ class LocalStorageService {
       // Abaikan error non-kritis
     }
   }
+
+  static const String _keyScrapedMedia = 'cineflow_scraped_media_v1';
+  static const String _keyScrapedUpdates = 'cineflow_scraped_updates_v1';
+  static const String _keyLastScrapeTime = 'cineflow_last_scrape_time_v1';
+
+  /// Mengambil daftar media hasil scrap otomatis yang tersimpan di perangkat
+  Future<List<MediaItem>> getScrapedMedia() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawList = prefs.getStringList(_keyScrapedMedia) ?? [];
+      return rawList.map((str) {
+        final map = jsonDecode(str) as Map<String, dynamic>;
+        return MediaItem.fromJson(map);
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Menyimpan dan menggabungkan daftar media hasil scrap otomatis secara persisten
+  Future<void> saveScrapedMedia(List<MediaItem> items) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existing = await getScrapedMedia();
+      final existingMap = {for (final e in existing) e.id: e};
+      for (final item in items) {
+        existingMap[item.id] = item;
+      }
+      final merged = existingMap.values.toList();
+      final stringList = merged.map((e) => jsonEncode(e.toJson())).toList();
+      await prefs.setStringList(_keyScrapedMedia, stringList);
+    } catch (_) {
+      // Abaikan kegagalan non-kritis
+    }
+  }
+
+  /// Mengambil daftar jadwal update hasil scrap otomatis
+  Future<List<SeriesUpdateItem>> getScrapedUpdates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawList = prefs.getStringList(_keyScrapedUpdates) ?? [];
+      return rawList.map((str) {
+        final map = jsonDecode(str) as Map<String, dynamic>;
+        return SeriesUpdateItem.fromJson(map);
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Menyimpan dan menggabungkan daftar jadwal update hasil scrap otomatis
+  Future<void> saveScrapedUpdates(List<SeriesUpdateItem> items) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existing = await getScrapedUpdates();
+      final existingMap = {for (final e in existing) e.id: e};
+      for (final item in items) {
+        existingMap[item.id] = item;
+      }
+      final merged = existingMap.values.toList();
+      final stringList = merged.map((e) => jsonEncode(e.toJson())).toList();
+      await prefs.setStringList(_keyScrapedUpdates, stringList);
+    } catch (_) {
+      // Abaikan kegagalan non-kritis
+    }
+  }
+
+  /// Mengambil waktu scrap otomatis terakhir
+  Future<DateTime?> getLastScrapeTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_keyLastScrapeTime);
+      return str != null ? DateTime.tryParse(str) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Menyimpan waktu scrap otomatis terakhir
+  Future<void> setLastScrapeTime(DateTime time) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyLastScrapeTime, time.toIso8601String());
+    } catch (_) {
+      // Abaikan error non-kritis
+    }
+  }
 }

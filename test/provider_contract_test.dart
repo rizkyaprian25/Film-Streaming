@@ -73,5 +73,29 @@ void main() {
       expect(subsRes.isSuccess, isTrue);
       expect(subsRes.data!.isNotEmpty, isTrue);
     });
+
+    test('Validasi Katalog 2026: Seluruh konten dirilis antara 2024 - 2026', () async {
+      final allCategories = ['drakor', 'anime', 'western_series', 'hollywood', 'indonesian'];
+      for (final cat in allCategories) {
+        final res = await provider.getByCategory(cat);
+        expect(res.isSuccess, isTrue);
+        expect(res.data!.length, equals(40));
+        // Tidak ada film jadul di bawah 2024
+        expect(res.data!.every((m) => m.releaseYear >= 2024), isTrue);
+        // Terdapat film rilisan 2026
+        expect(res.data!.any((m) => m.releaseYear == 2026), isTrue);
+      }
+    });
+
+    test('Validasi Multi-Mirror Video: Minimal 5 mirror CDN aktif tersedia', () async {
+      final sourcesRes = await provider.getStreamSources(mediaId: 'k1');
+      expect(sourcesRes.isSuccess, isTrue);
+      expect(sourcesRes.data!.length, greaterThanOrEqualTo(5));
+      // Terdapat opsi MP4 dan HLS
+      expect(sourcesRes.data!.any((s) => s.isHls), isTrue);
+      expect(sourcesRes.data!.any((s) => !s.isHls), isTrue);
+      // Setiap mirror memiliki serverName yang jelas
+      expect(sourcesRes.data!.every((s) => s.serverName != null && s.serverName!.isNotEmpty), isTrue);
+    });
   });
 }

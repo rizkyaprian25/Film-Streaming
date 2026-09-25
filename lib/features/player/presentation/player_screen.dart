@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../contracts/models.dart';
+import '../../../contracts/mock_data.dart';
 
 class PlayerScreen extends StatefulWidget {
   final MediaDetail media;
@@ -41,6 +42,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _controlsTimer;
   Timer? _progressSaveTimer;
 
+  late List<StreamSource> _availableSources;
+  int _currentSourceIndex = 0;
   late StreamSource _currentSource;
   EpisodeItem? _currentEpisode;
   SubtitleTrack? _selectedSubtitle;
@@ -53,12 +56,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ? widget.media.seasons.first.episodes.first
             : null);
 
-    _currentSource = widget.streamSources.isNotEmpty
-        ? widget.streamSources.first
-        : const StreamSource(
-            url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-            quality: VideoQuality.q1080p,
-          );
+    // Kumpulkan seluruh sumber stream video dan cadangan multi-mirror resmi
+    _availableSources = widget.streamSources.isNotEmpty
+        ? List<StreamSource>.from(widget.streamSources)
+        : List<StreamSource>.from(MockData.sampleStreamSources);
+
+    for (final backup in MockData.sampleStreamSources) {
+      if (!_availableSources.any((s) => s.url == backup.url)) {
+        _availableSources.add(backup);
+      }
+    }
+
+    _currentSourceIndex = 0;
+    _currentSource = _availableSources.first;
 
     if (widget.subtitles.isNotEmpty) {
       _selectedSubtitle = widget.subtitles.first;
@@ -68,7 +78,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _startPeriodicProgressSaver();
   }
 
-  Future<void> _initializePlayer() async {
+  /// Inisialisasi pemutar video dengan Failover Otomatis Multi-Mirror
+  Future<void> _initializePlayer({bool autoFailover = true}) async {
     setState(() {
       _isLoading = true;
       _hasError = false;
@@ -96,15 +107,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
         setState(() {
           _isLoading = false;
           _isPlaying = true;
+          _hasError = false;
         });
         _resetControlsTimer();
       }
     } catch (e) {
+      // Auto failover ke cermin video berikutnya jika server saat ini gagal
+      if (autoFailover && _currentSourceIndex + 1 < _availableSources.length) {
+        _currentSourceIndex++;
+        _currentSource = _availableSources[_currentSourceIndex];
+        await _initializePlayer(autoFailover: true);
+        return;
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
           _hasError = true;
-          _errorMessage = 'Gagal memutar video. Silakan periksa koneksi atau coba server lain.';
+          _errorMessage =
+              'Tidak dapat memutar video pada server ini. Silakan pilih server streaming lain di bawah atau periksa koneksi jaringan Anda.';
         });
       }
     }
@@ -207,14 +228,35 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _selectQuality(StreamSource source) {
     Navigator.pop(context);
-    if (_currentSource.quality == source.quality) return;
+    final idx = _availableSources.indexOf(source);
+    if (idx != -1) {
+      _switchServer(idx);
+    } else {
+      final currentPos = _controller?.value.position ?? Duration.zero;
+      setState(() {
+        _currentSource = source;
+      });
+      _initializePlayer(autoFailover: false).then((_) {
+        if (currentPos > Duration.zero) {
+          _controller?.seekTo(currentPos);
+        }
+      });
+    }
+  }
 
+  void _switchServer(int index) {
+    if (_currentSourceIndex == index && _controller != null && _controller!.value.isInitialized) {
+      return;
+    }
     final currentPos = _controller?.value.position ?? Duration.zero;
     setState(() {
-      _currentSource = source;
+      _currentSourceIndex = index;
+      _currentSource = _availableSources[index];
     });
-    _initializePlayer().then((_) {
-      _controller?.seekTo(currentPos);
+    _initializePlayer(autoFailover: false).then((_) {
+      if (currentPos > Duration.zero) {
+        _controller?.seekTo(currentPos);
+      }
     });
   }
 
@@ -299,27 +341,72 @@ class _PlayerScreenState extends State<PlayerScreen> {
               // Tampilan Kesalahan Pemutaran (*Error Recovery*)
               if (_hasError)
                 Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24.0),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border, width: 0.8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+                        const Icon(Icons.cloud_off_rounded, color: AppColors.primary, size: 48),
                         const SizedBox(height: 12),
+                        const Text(
+                          'Kendala Sumber Pemutaran',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
                         Text(
                           _errorMessage,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
                         ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _initializePlayer,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.black,
-                          ),
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Coba Lagi'),
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _showServerSheet,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: const Icon(Icons.dns_rounded, size: 18),
+                              label: Text('Ganti Server (${_availableSources.length} Mirror)'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _initializePlayer(autoFailover: false),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(color: AppColors.borderLight),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              icon: const Icon(Icons.refresh_rounded, size: 18),
+                              label: const Text('Coba Lagi'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.textMuted,
+                              ),
+                              child: const Text('Kembali ke Detail'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -443,6 +530,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
             icon: const Icon(Icons.tune_rounded, color: Colors.white, size: 22),
             tooltip: 'Kualitas Video',
             onPressed: _showQualitySheet,
+          ),
+
+          // Tombol Pemilih Server Streaming (Multi-Mirror)
+          InkWell(
+            onTap: _showServerSheet,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.6), width: 0.6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.dns_rounded, color: AppColors.primary, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Server ${_currentSourceIndex + 1}',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -667,20 +784,93 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: Text('Pilih Resolusi Video', style: AppTypography.sectionTitle),
               ),
               const Divider(color: AppColors.border, height: 1),
-              ...widget.streamSources.map((source) {
-                final isSelected = _currentSource.quality == source.quality;
+              ..._availableSources.map((source) {
+                final isSelected = _currentSource.url == source.url;
                 return ListTile(
                   title: Text(
-                    source.quality.label,
+                    source.serverName ?? source.quality.label,
                     style: TextStyle(
                       color: isSelected ? AppColors.primary : Colors.white,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
                     ),
                   ),
+                  subtitle: Text(
+                    source.quality.label,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
                   trailing: isSelected
                       ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
                       : null,
                   onTap: () => _selectQuality(source),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Lembar Pemilih Server Multi-Mirror (Failover Cepat)
+  void _showServerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surfaceElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Pilih Server Streaming', style: AppTypography.sectionTitle),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: AppColors.border, height: 1),
+              ..._availableSources.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final source = entry.value;
+                final isSelected = _currentSourceIndex == idx;
+
+                return ListTile(
+                  tileColor: isSelected
+                      ? AppColors.primary.withValues(alpha: 0.12)
+                      : AppColors.surface,
+                  leading: Icon(
+                    source.isHls ? Icons.wifi_channel_rounded : Icons.flash_on_rounded,
+                    color: isSelected ? AppColors.primary : Colors.white60,
+                  ),
+                  title: Text(
+                    source.serverName ?? 'Server ${idx + 1} (${source.quality.label})',
+                    style: TextStyle(
+                      color: isSelected ? AppColors.primary : Colors.white,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
+                  subtitle: Text(
+                    source.isHls ? 'HLS Multi-Bitrate (Adaptif)' : 'Direct CDN Ultra Fast',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _switchServer(idx);
+                  },
                 );
               }),
             ],

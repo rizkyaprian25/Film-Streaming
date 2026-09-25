@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/services/auto_update_service.dart';
+import '../../../core/services/auto_scraper_service.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../contracts/models.dart';
 import '../../../main.dart';
@@ -221,17 +222,18 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                         ),
                       )
                     : const Icon(Icons.sync_rounded, color: AppColors.primary),
-                tooltip: 'Periksa Update Otomatis',
+                tooltip: 'Periksa Update & Scrap Otomatis',
                 onPressed: isSyncing
                     ? null
                     : () async {
                         final messenger = ScaffoldMessenger.of(context);
+                        await AutoScraperService.instance.refreshAllSources(force: true);
                         await _updateService.checkUpdates(force: true);
                         if (!mounted) return;
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text('✨ Jadwal & update episode berhasil disinkronkan!'),
-                            duration: Duration(seconds: 1),
+                            content: Text('⚡ Scrap otomatis berhasil: Update episode 2026 disinkronkan!'),
+                            duration: Duration(seconds: 2),
                             backgroundColor: AppColors.surfaceElevated,
                           ),
                         );
@@ -243,7 +245,10 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => _updateService.checkUpdates(force: true),
+        onRefresh: () async {
+          await AutoScraperService.instance.refreshAllSources(force: true);
+          await _updateService.checkUpdates(force: true);
+        },
         color: AppColors.primary,
         backgroundColor: AppColors.surfaceElevated,
         child: Column(

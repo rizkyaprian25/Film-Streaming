@@ -44,34 +44,20 @@ class MediaCard extends StatelessWidget {
                     width: width,
                     height: height,
                     color: AppColors.surfaceElevated,
-                    child: Image.network(
-                      item.posterUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: AppColors.surfaceElevated,
-                        child: const Icon(
-                          Icons.movie_outlined,
-                          color: AppColors.textMuted,
-                          size: 36,
-                        ),
-                      ),
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: AppColors.surfaceElevated,
-                          child: const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                    child: item.posterUrl.isNotEmpty
+                        ? Image.network(
+                            item.posterUrl,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                            errorBuilder: (context, error, stackTrace) => _buildFallbackPoster(),
+                            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                              if (wasSynchronouslyLoaded || frame != null) {
+                                return child;
+                              }
+                              return _buildFallbackPoster();
+                            },
+                          )
+                        : _buildFallbackPoster(),
                   ),
 
                   // Badge Rating di Pojok Kiri Atas
@@ -189,6 +175,87 @@ class MediaCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Poster Cadangan Artistik Apple HIG (*Cinematic Fallback Artwork*)
+  /// Menjamin tampilan kartu selalu elegan dan tidak pernah menampilkan kotak kosong saat jaringan lambat.
+  Widget _buildFallbackPoster() {
+    List<Color> gradientColors;
+    IconData iconData;
+
+    if (item.type == MediaType.anime) {
+      gradientColors = const [Color(0xFF2D1152), Color(0xFF130924)];
+      iconData = Icons.auto_awesome_rounded;
+    } else if (item.genres.any((g) => g.contains('Drakor') || g.contains('Romance'))) {
+      gradientColors = const [Color(0xFF3B1238), Color(0xFF140816)];
+      iconData = Icons.favorite_rounded;
+    } else if (item.genres.any((g) => g.contains('Indonesia') || g.contains('Horor'))) {
+      gradientColors = const [Color(0xFF2E1515), Color(0xFF0F0808)];
+      iconData = Icons.nightlight_round;
+    } else if (item.genres.any((g) => g.contains('Sci-Fi') || g.contains('Aksi'))) {
+      gradientColors = const [Color(0xFF112233), Color(0xFF0A0F1A)];
+      iconData = Icons.bolt_rounded;
+    } else {
+      gradientColors = const [Color(0xFF1F2430), Color(0xFF0E1118)];
+      iconData = Icons.movie_filter_rounded;
+    }
+
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: gradientColors,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            iconData,
+            size: 28,
+            color: AppColors.primary.withValues(alpha: 0.7),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.title,
+            maxLines: 3,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: -0.2,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 0.5,
+              ),
+            ),
+            child: Text(
+              '${item.releaseYear}',
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryLight,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

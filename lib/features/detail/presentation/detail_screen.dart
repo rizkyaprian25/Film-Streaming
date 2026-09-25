@@ -175,7 +175,23 @@ class _DetailScreenState extends State<DetailScreen> {
                   Image.network(
                     detail.backdropUrl.isNotEmpty ? detail.backdropUrl : detail.posterUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(color: AppColors.surfaceElevated),
+                    filterQuality: FilterQuality.medium,
+                    errorBuilder: (_, _, _) => Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF231828), Color(0xFF111420), Color(0xFF090A0E)],
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.movie_filter_rounded,
+                          size: 60,
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                    ),
                   ),
                   // Gradien Hitam Sinematik
                   Container(

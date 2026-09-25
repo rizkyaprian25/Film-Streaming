@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/storage/local_storage.dart';
 import '../../../core/services/auto_update_service.dart';
+import '../../../core/services/auto_scraper_service.dart';
 import '../../../core/widgets/media_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../contracts/models.dart';
@@ -41,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategoryFilter = 'all';
 
   StreamSubscription<String>? _bannerSub;
+  StreamSubscription<String>? _scraperSub;
   String? _bannerMessage;
 
   @override
@@ -61,11 +63,22 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     });
+
+    // Dengarkan notifikasi keberhasilan pengikisan otomatis in-app (Tachiyomi-style)
+    _scraperSub = AutoScraperService.instance.onScrapeNotification.listen((msg) {
+      if (mounted) {
+        setState(() {
+          _bannerMessage = msg;
+        });
+        _loadCatalog();
+      }
+    });
   }
 
   @override
   void dispose() {
     _bannerSub?.cancel();
+    _scraperSub?.cancel();
     _heroPageController.dispose();
     super.dispose();
   }
@@ -208,7 +221,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: RefreshIndicator(
-        onRefresh: _loadCatalog,
+        onRefresh: () async {
+          await AutoScraperService.instance.refreshAllSources(force: true);
+          await _loadCatalog();
+          await _checkUpdates();
+        },
         color: AppColors.primary,
         backgroundColor: AppColors.surfaceElevated,
         child: CustomScrollView(
@@ -235,6 +252,67 @@ class _HomeScreenState extends State<HomeScreen> {
                         letterSpacing: 1.1,
                       ),
                     ),
+                  ),
+                  const Spacer(),
+                  // Tombol & Status Auto-Scraping Real-Time Apple HIG
+                  ValueListenableBuilder<bool>(
+                    valueListenable: AutoScraperService.instance.isScrapingNotifier,
+                    builder: (context, isScraping, _) {
+                      return InkWell(
+                        onTap: isScraping
+                            ? null
+                            : () async {
+                                final res = await AutoScraperService.instance.refreshAllSources(force: true);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(res.message),
+                                    backgroundColor: AppColors.surfaceElevated,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                                _loadCatalog();
+                              },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isScraping
+                                ? AppColors.primary.withValues(alpha: 0.2)
+                                : AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isScraping ? AppColors.primary : AppColors.border,
+                              width: 0.6,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              isScraping
+                                  ? const SizedBox(
+                                      width: 11,
+                                      height: 11,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.6,
+                                        color: AppColors.primary,
+                                      ),
+                                    )
+                                  : const Icon(Icons.bolt_rounded, size: 15, color: AppColors.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                isScraping ? 'MENGIKIS...' : 'SCRAP OTOMATIS',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -326,6 +404,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverToBoxAdapter(
                   child: _buildHeroCarousel(),
                 ),
+
+              // Seksi Hasil Pengikisan Otomatis 2026 (Tachiyomi-style Live Scraper Feed)
+              ValueListenableBuilder<List<MediaItem>>(
+                valueListenable: AutoScraperService.instance.scrapedMediaNotifier,
+                builder: (context, scrapedItems, _) {
+                  if (scrapedItems.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                  return SliverToBoxAdapter(
+                    child: _buildMediaRow(
+                      title: '⚡ Rilis Baru Terkikis Otomatis (2026)',
+                      items: scrapedItems,
+                      onSeeAll: () => setState(() => _selectedCategoryFilter = 'scraped_2026'),
+                    ),
+                  );
+                },
+              ),
 
               // Seksi Update Episode Baru Hari Ini (LokLok Signature Live Update)
               if (_todayUpdates.isNotEmpty)
@@ -447,6 +540,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCategoryPills() {
     final categories = [
       {'id': 'all', 'label': 'Semua'},
+      {'id': 'scraped_2026', 'label': '⚡ Scrap 2026'},
       {'id': 'drakor', 'label': 'Drakor'},
       {'id': 'anime', 'label': 'Anime'},
       {'id': 'western_series', 'label': 'Series Barat'},
@@ -522,7 +616,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     Image.network(
                       item.backdropUrl.isNotEmpty ? item.backdropUrl : item.posterUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(color: AppColors.surfaceElevated),
+                      filterQuality: FilterQuality.medium,
+                      errorBuilder: (_, _, _) => _buildHeroPlaceholder(item),
                     ),
                     // Gradien Bayangan Gelap Apple HIG
                     Container(
@@ -781,6 +876,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Judul Deskriptif Kategori Berdasarkan Filter
   String _getCategoryTitle(String catId) {
     switch (catId) {
+      case 'scraped_2026':
+        return 'Update Terkikis Otomatis 2026 ⚡';
       case 'drakor':
         return 'Drama Korea Populer (Drakor) 💖';
       case 'anime':
@@ -801,6 +898,9 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Ambil Daftar Media Sesuai Kategori
   List<MediaItem> _getFilteredList(String catId) {
     switch (catId) {
+      case 'scraped_2026':
+        final scraped = AutoScraperService.instance.scrapedMediaNotifier.value;
+        return scraped.isNotEmpty ? scraped : _trendingList;
       case 'drakor':
         return _drakorList;
       case 'anime':
@@ -816,5 +916,28 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return _allMediaList;
     }
+  }
+
+  Widget _buildHeroPlaceholder(MediaItem item) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2A1B0E),
+            Color(0xFF141724),
+            Color(0xFF090A0E),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.movie_creation_outlined,
+          size: 64,
+          color: AppColors.primary.withValues(alpha: 0.25),
+        ),
+      ),
+    );
   }
 }

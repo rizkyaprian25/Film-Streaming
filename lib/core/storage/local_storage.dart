@@ -98,4 +98,64 @@ class LocalStorageService {
     await prefs.setStringList(_keyWatchlist, stringList);
     return !exists; // Mengembalikan true jika ditambahkan, false jika dihapus
   }
+
+  static const String _keySeriesReminders = 'cineflow_series_reminders_v1';
+  static const String _keyLastUpdateCheck = 'cineflow_last_update_check_v1';
+
+  /// Mengambil daftar mediaId yang dipasangi pengingat rilis episode
+  Future<List<String>> getReminders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList(_keySeriesReminders) ?? [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Memeriksa apakah suatu series dipasangi pengingat
+  Future<bool> hasReminder(String mediaId) async {
+    final list = await getReminders();
+    return list.contains(mediaId);
+  }
+
+  /// Mengaktifkan atau menonaktifkan pengingat rilis episode (*Toggle Reminder*)
+  Future<bool> toggleReminder(String mediaId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = await getReminders();
+      final exists = list.contains(mediaId);
+
+      if (exists) {
+        list.remove(mediaId);
+      } else {
+        list.add(mediaId);
+      }
+
+      await prefs.setStringList(_keySeriesReminders, list);
+      return !exists; // true jika diaktifkan, false jika dimatikan
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Mengambil waktu pemeriksaan pembaruan otomatis terakhir
+  Future<DateTime?> getLastUpdateCheck() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_keyLastUpdateCheck);
+      return str != null ? DateTime.tryParse(str) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Menyimpan waktu pemeriksaan pembaruan otomatis terakhir
+  Future<void> setLastUpdateCheck(DateTime time) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyLastUpdateCheck, time.toIso8601String());
+    } catch (_) {
+      // Abaikan error non-kritis
+    }
+  }
 }

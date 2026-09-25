@@ -11,6 +11,8 @@ class MediaCard extends StatelessWidget {
   final VoidCallback onTap;
   final double width;
   final double height;
+  final String? customBadge;
+  final Color? customBadgeColor;
 
   const MediaCard({
     super.key,
@@ -18,6 +20,8 @@ class MediaCard extends StatelessWidget {
     required this.onTap,
     this.width = 130,
     this.height = 195,
+    this.customBadge,
+    this.customBadgeColor,
   });
 
   @override
@@ -123,6 +127,45 @@ class MediaCard extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // Badge Khusus Update / Episode Baru (Gaya LokLok)
+                  if (customBadge != null)
+                    Positioned(
+                      bottom: 6,
+                      left: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: customBadgeColor != null
+                                ? [customBadgeColor!, customBadgeColor!.withValues(alpha: 0.8)]
+                                : const [Color(0xFFFFB800), Color(0xFFFF5E00)],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            customBadge!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.black,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

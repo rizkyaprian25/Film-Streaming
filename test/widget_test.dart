@@ -23,8 +23,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Verifikasi bahwa 4 tab utama LokLok berhasil tampil
+    // Verifikasi bahwa 5 tab utama LokLok berhasil tampil
     expect(find.text('Beranda'), findsOneWidget);
+    expect(find.text('Update'), findsOneWidget);
     expect(find.text('Kategori'), findsOneWidget);
     expect(find.text('Cari'), findsOneWidget);
     expect(find.text('Koleksi'), findsOneWidget);

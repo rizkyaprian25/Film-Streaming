@@ -296,3 +296,87 @@ class WatchlistItem {
         addedAt: DateTime.tryParse(json['added_at'] as String? ?? '') ?? DateTime.now(),
       );
 }
+
+/// Model jadwal rilis mingguan dan update episode otomatis gaya LokLok
+class SeriesUpdateItem {
+  final String id;
+  final String title;
+  final String posterUrl;
+  final String backdropUrl;
+  final int latestEpisode;
+  final int totalEpisodes;
+  final String releaseDay; // 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
+  final String releaseTime; // '21:00 WIB'
+  final String updateTag; // 'EPISODE BARU', 'HARI INI', 'BESOK', 'ONGOING'
+  final MediaType type;
+  final List<String> genres;
+  final double rating;
+  final String latestEpisodeTitle;
+  final bool isNewToday;
+
+  const SeriesUpdateItem({
+    required this.id,
+    required this.title,
+    required this.posterUrl,
+    required this.backdropUrl,
+    required this.latestEpisode,
+    required this.totalEpisodes,
+    required this.releaseDay,
+    required this.releaseTime,
+    required this.updateTag,
+    required this.type,
+    required this.genres,
+    required this.rating,
+    required this.latestEpisodeTitle,
+    this.isNewToday = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'poster_url': posterUrl,
+        'backdrop_url': backdropUrl,
+        'latest_episode': latestEpisode,
+        'total_episodes': totalEpisodes,
+        'release_day': releaseDay,
+        'release_time': releaseTime,
+        'update_tag': updateTag,
+        'type': type.name,
+        'genres': genres,
+        'rating': rating,
+        'latest_episode_title': latestEpisodeTitle,
+        'is_new_today': isNewToday,
+      };
+
+  factory SeriesUpdateItem.fromJson(Map<String, dynamic> json) => SeriesUpdateItem(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? 'Tanpa Judul',
+        posterUrl: json['poster_url'] as String? ?? '',
+        backdropUrl: json['backdrop_url'] as String? ?? '',
+        latestEpisode: json['latest_episode'] as int? ?? 1,
+        totalEpisodes: json['total_episodes'] as int? ?? 16,
+        releaseDay: json['release_day'] as String? ?? 'Senin',
+        releaseTime: json['release_time'] as String? ?? '21:00 WIB',
+        updateTag: json['update_tag'] as String? ?? 'ONGOING',
+        type: MediaType.values.firstWhere(
+          (e) => e.name == json['type'],
+          orElse: () => MediaType.series,
+        ),
+        genres: (json['genres'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
+        rating: (json['rating'] as num?)?.toDouble() ?? 8.5,
+        latestEpisodeTitle: json['latest_episode_title'] as String? ?? 'Episode Terbaru',
+        isNewToday: json['is_new_today'] as bool? ?? false,
+      );
+
+  /// Konversi ke MediaItem standar agar kompatibel dengan MediaCard dan katalog utama
+  MediaItem toMediaItem() => MediaItem(
+        id: id,
+        title: title,
+        posterUrl: posterUrl,
+        backdropUrl: backdropUrl,
+        rating: rating,
+        releaseYear: DateTime.now().year,
+        type: type,
+        genres: genres,
+      );
+}

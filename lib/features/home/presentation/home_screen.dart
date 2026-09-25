@@ -1,14 +1,17 @@
 // Layar Beranda Utama (Home Catalog & Hero Carousel)
 // Mengimplementasikan tata letak katalog LokLok dengan Banner Hero, Continue Watching, dan barisan konten.
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/storage/local_storage.dart';
+import '../../../core/services/auto_update_service.dart';
 import '../../../core/widgets/media_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../contracts/models.dart';
 import '../../../main.dart';
+import '../../shell/app_shell.dart';
 import '../../detail/presentation/detail_screen.dart';
 import '../../player/presentation/player_screen.dart';
 
@@ -31,17 +34,49 @@ class _HomeScreenState extends State<HomeScreen> {
   List<MediaItem> _hollywoodList = [];
   List<MediaItem> _indonesianList = [];
   List<MediaItem> _allMediaList = [];
+  List<SeriesUpdateItem> _todayUpdates = [];
   List<WatchHistoryItem> _continueWatchingList = [];
 
   bool _isLoading = true;
   String _selectedCategoryFilter = 'all';
 
+  StreamSubscription<String>? _bannerSub;
+  String? _bannerMessage;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadCatalog();
+      if (mounted) {
+        _loadCatalog();
+        _checkUpdates();
+      }
     });
+
+    // Dengarkan notifikasi siaran pembaruan episode baru
+    _bannerSub = AutoUpdateService.instance.onNewUpdateBanner.listen((msg) {
+      if (mounted) {
+        setState(() {
+          _bannerMessage = msg;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _bannerSub?.cancel();
+    _heroPageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _checkUpdates() async {
+    await AutoUpdateService.instance.checkUpdates();
+    if (mounted) {
+      setState(() {
+        _todayUpdates = AutoUpdateService.instance.getTodayReleases();
+      });
+    }
   }
 
   Future<void> _loadCatalog() async {
@@ -209,6 +244,51 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // Banner Floating Update Episode Otomatis LokLok
+            if (_bannerMessage != null)
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2E1C0A), Color(0xFF1E1E24)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.8), width: 0.8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.notifications_active_rounded, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _bannerMessage!,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _bannerMessage = null);
+                          AppShell.switchTab(context, 1);
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          foregroundColor: AppColors.primary,
+                        ),
+                        child: const Text('LIHAT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16, color: Colors.white54),
+                        onPressed: () => setState(() => _bannerMessage = null),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // Jika filter bukan 'all', tampilkan grid poster vertikal kategori tersebut
             if (_selectedCategoryFilter != 'all') ...[
               SliverToBoxAdapter(
@@ -245,6 +325,12 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_featuredList.isNotEmpty)
                 SliverToBoxAdapter(
                   child: _buildHeroCarousel(),
+                ),
+
+              // Seksi Update Episode Baru Hari Ini (LokLok Signature Live Update)
+              if (_todayUpdates.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildTodayUpdatesSection(),
                 ),
 
               // Seksi Lanjutkan Menonton (LokLok Signature)
@@ -623,6 +709,35 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Komponen Baris Update Episode Baru Hari Ini Bergaya LokLok
+  Widget _buildTodayUpdatesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: 'Update Episode Baru Hari Ini 🔥',
+          onSeeAll: () => AppShell.switchTab(context, 1),
+        ),
+        SizedBox(
+          height: 250,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollDirection: Axis.horizontal,
+            itemCount: _todayUpdates.length,
+            itemBuilder: (context, idx) {
+              final update = _todayUpdates[idx];
+              return MediaCard(
+                item: update.toMediaItem(),
+                customBadge: update.updateTag,
+                onTap: () => _openDetail(update.id),
               );
             },
           ),

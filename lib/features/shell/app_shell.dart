@@ -1,16 +1,24 @@
 // Kerangka Aplikasi Utama (App Shell) Bergaya LokLok dengan Navigasi Kaca (*Liquid Glass Bar*)
-// Memadukan 4 tab navigasi utama tanpa login: Beranda, Kategori, Cari, dan Koleksi.
+// Memadukan 5 tab navigasi utama tanpa login: Beranda, Update (Jadwal Rilis), Kategori, Cari, dan Koleksi.
 
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/services/auto_update_service.dart';
 import '../home/presentation/home_screen.dart';
+import '../updates/presentation/updates_screen.dart';
 import '../discover/presentation/discover_screen.dart';
 import '../search/presentation/search_screen.dart';
 import '../library/presentation/library_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
+
+  /// Navigasi langsung antar tab dari layar mana pun
+  static void switchTab(BuildContext context, int tabIndex) {
+    final state = context.findAncestorStateOfType<_AppShellState>();
+    state?.switchTab(tabIndex);
+  }
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -19,20 +27,25 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
 
-  // Daftar 4 layar utama aplikasi
+  // Daftar 5 layar utama aplikasi bergaya LokLok 100%
   final List<Widget> _screens = const [
     HomeScreen(),
+    UpdatesScreen(),
     DiscoverScreen(),
     SearchScreen(),
     LibraryScreen(),
   ];
 
-  void _onTabSelected(int index) {
+  void switchTab(int index) {
     if (_currentIndex != index) {
       setState(() {
         _currentIndex = index;
       });
     }
+  }
+
+  void _onTabSelected(int index) {
+    switchTab(index);
   }
 
   @override
@@ -63,10 +76,10 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
           padding: EdgeInsets.only(
-            left: 12,
-            right: 12,
-            top: 8,
-            bottom: bottomPadding > 0 ? bottomPadding : 10,
+            left: 8,
+            right: 8,
+            top: 6,
+            bottom: bottomPadding > 0 ? bottomPadding : 8,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -76,18 +89,23 @@ class _AppShellState extends State<AppShell> {
                 icon: Icons.home_rounded,
                 label: 'Beranda',
               ),
-              _buildNavItem(
+              _buildNavItemWithBadge(
                 index: 1,
+                icon: Icons.update_rounded,
+                label: 'Update',
+              ),
+              _buildNavItem(
+                index: 2,
                 icon: Icons.explore_rounded,
                 label: 'Kategori',
               ),
               _buildNavItem(
-                index: 2,
+                index: 3,
                 icon: Icons.search_rounded,
                 label: 'Cari',
               ),
               _buildNavItem(
-                index: 3,
+                index: 4,
                 icon: Icons.bookmark_rounded,
                 label: 'Koleksi',
               ),
@@ -110,10 +128,10 @@ class _AppShellState extends State<AppShell> {
       onTap: () => _onTabSelected(index),
       borderRadius: BorderRadius.circular(16),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 64, minHeight: 44),
+        constraints: const BoxConstraints(minWidth: 58, minHeight: 44),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.primary.withValues(alpha: 0.12)
@@ -126,14 +144,73 @@ class _AppShellState extends State<AppShell> {
               Icon(
                 icon,
                 color: isSelected ? AppColors.primary : AppColors.textMuted,
-                size: 24,
+                size: 22,
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                  color: isSelected ? AppColors.primary : AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Komponen tombol item navigasi khusus dengan Badge Notifikasi Dinamis
+  Widget _buildNavItemWithBadge({
+    required int index,
+    required IconData icon,
+    required String label,
+  }) {
+    final isSelected = _currentIndex == index;
+
+    return InkWell(
+      onTap: () => _onTabSelected(index),
+      borderRadius: BorderRadius.circular(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 58, minHeight: 44),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<int>(
+                valueListenable: AutoUpdateService.instance.unreadCountNotifier,
+                builder: (context, unreadCount, child) {
+                  return Badge(
+                    isLabelVisible: unreadCount > 0,
+                    label: Text(
+                      unreadCount > 9 ? '9+' : '$unreadCount',
+                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900),
+                    ),
+                    backgroundColor: Colors.redAccent,
+                    child: Icon(
+                      icon,
+                      color: isSelected ? AppColors.primary : AppColors.textMuted,
+                      size: 22,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
                   color: isSelected ? AppColors.primary : AppColors.textMuted,
                 ),
               ),
